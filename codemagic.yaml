@@ -5,16 +5,11 @@ workflows:
     environment:
       flutter: stable
     scripts:
-      # 1. создаём нормальный flutter-проект с android
       - name: Create flutter project (android)
         script: |
           flutter create . --platforms=android
-
-      # 2. ставим зависимости
       - name: Get packages
         script: flutter pub get
-
-      # 3. патчим ffmpeg-плагин (добавляем namespace)
       - name: Patch ffmpeg_kit for new AGP
         script: |
           PLUG_DIR="$HOME/.pub-cache/hosted/pub.dev/ffmpeg_kit_flutter_full_gpl-4.5.1/android"
@@ -30,10 +25,7 @@ workflows:
           else
             echo "ffmpeg kit build.gradle not found (maybe version changed)"
           fi
-
-      # 4. собираем apk
       - name: Build APK
         script: flutter build apk --release
-
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
