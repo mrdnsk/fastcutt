@@ -8,8 +8,10 @@ workflows:
       - name: Create flutter project (android)
         script: |
           flutter create . --platforms=android
+
       - name: Get packages
         script: flutter pub get
+
       - name: Patch ffmpeg_kit for new AGP
         script: |
           PLUG_DIR="$HOME/.pub-cache/hosted/pub.dev/ffmpeg_kit_flutter_full_gpl-4.5.1/android"
@@ -17,11 +19,9 @@ workflows:
           echo "Plugin dir: $PLUG_DIR"
           if [ -f "$FILE" ]; then
             if ! grep -q "com.arthenica.ffmpegkit" "$FILE"; then
-              echo '
-android {
-    namespace "com.arthenica.ffmpegkit"
-}
-' >> "$FILE"
+              echo "android {" >> \"$FILE\"
+              echo "    namespace 'com.arthenica.ffmpegkit'" >> \"$FILE\"
+              echo "}" >> \"$FILE\"
               echo "ffmpeg_kit patched with android{namespace}"
             else
               echo "ffmpeg_kit already patched"
@@ -29,7 +29,9 @@ android {
           else
             echo "ffmpeg kit build.gradle not found"
           fi
+
       - name: Build APK
         script: flutter build apk --release
+
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
