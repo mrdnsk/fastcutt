@@ -1,13 +1,39 @@
 workflows:
   android-build:
     name: FastCut Android Build
-    max_build_duration: 30
+    max_build_duration: 40
     environment:
       flutter: stable
     scripts:
-      - script: |
+      # 1. создаём нормальный flutter-проект с android
+      - name: Create flutter project (android)
+        script: |
           flutter create . --platforms=android
-      - script: flutter pub get
-      - script: flutter build apk --release
+
+      # 2. ставим зависимости
+      - name: Get packages
+        script: flutter pub get
+
+      # 3. патчим ffmpeg-плагин (добавляем namespace)
+      - name: Patch ffmpeg_kit for new AGP
+        script: |
+          PLUG_DIR="$HOME/.pub-cache/hosted/pub.dev/ffmpeg_kit_flutter_full_gpl-4.5.1/android"
+          FILE="$PLUG_DIR/build.gradle"
+          echo "Plugin dir: $PLUG_DIR"
+          if [ -f "$FILE" ]; then
+            if ! grep -q "namespace " "$FILE"; then
+              echo 'namespace "com.arthenica.ffmpegkit"' >> "$FILE"
+              echo "namespace added to ffmpeg_kit"
+            else
+              echo "namespace already exists"
+            fi
+          else
+            echo "ffmpeg kit build.gradle not found (maybe version changed)"
+          fi
+
+      # 4. собираем apk
+      - name: Build APK
+        script: flutter build apk --release
+
     artifacts:
       - build/app/outputs/flutter-apk/app-release.apk
