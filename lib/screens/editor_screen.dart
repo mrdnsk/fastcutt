@@ -1,10 +1,9 @@
 import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:ffmpeg_kit_flutter_full_gpl/ffmpeg_kit.dart';
-import 'package:ffmpeg_kit_flutter_full_gpl/return_code.dart';
+import 'package:video_player/video_player.dart';
 
 import '../models/clip.dart';
 import '../widgets/timeline_widget.dart';
@@ -29,10 +28,15 @@ class _EditorScreenState extends State<EditorScreen> {
     super.dispose();
   }
 
+  // =========================
+  // IMPORT VIDEO
+  // =========================
   Future<void> _importVideo() async {
     final result = await FilePicker.platform.pickFiles(type: FileType.video);
     if (result == null || result.files.single.path == null) return;
+
     final path = result.files.single.path!;
+    // узнаём длительность через временный контроллер
     final tempCtrl = VideoPlayerController.file(File(path));
     await tempCtrl.initialize();
     final dur = tempCtrl.value.duration;
@@ -65,6 +69,9 @@ class _EditorScreenState extends State<EditorScreen> {
     ctrl.play();
   }
 
+  // =========================
+  // EXPORT (FAKE / COPY)
+  // =========================
   Future<void> _exportVideo() async {
     if (_clips.isEmpty) return;
     final clip = _clips.first;
@@ -76,29 +83,17 @@ class _EditorScreenState extends State<EditorScreen> {
     final dir = await getTemporaryDirectory();
     final outPath = '${dir.path}/fastcut_export.mp4';
 
-    final cmd = [
-      '-i', clip.path,
-      '-vf', 'scale=1080:-2, crop=1080:1920',
-      '-r', '30',
-      '-c:v', 'libx264',
-      '-preset', 'fast',
-      '-crf', '23',
-      '-c:a', 'aac',
-      '-b:a', '128k',
-      '-movflags', '+faststart',
-      outPath,
-    ];
-
-    final session = await FFmpegKit.execute(cmd.join(' '));
-    final rc = await session.getReturnCode();
+    bool success = false;
+    try {
+      await File(clip.path).copy(outPath);
+      success = true;
+    } catch (e) {
+      success = false;
+    }
 
     setState(() {
       _isExporting = false;
-      if (rc != null && ReturnCode.isSuccess(rc)) {
-        _lastExportPath = outPath;
-      } else {
-        _lastExportPath = null;
-      }
+      _lastExportPath = success ? outPath : null;
     });
 
     if (!mounted) return;
@@ -109,10 +104,14 @@ class _EditorScreenState extends State<EditorScreen> {
         final ok = _lastExportPath != null;
         return AlertDialog(
           backgroundColor: const Color(0xFF1B1B22),
-          title: Text(ok ? 'Export complete' : 'Export failed',
-              style: const TextStyle(color: Colors.white)),
+          title: Text(
+            ok ? 'Export complete' : 'Export failed',
+            style: const TextStyle(color: Colors.white),
+          ),
           content: Text(
-            ok ? 'Saved to: $_lastExportPath' : 'Try again',
+            ok
+                ? 'Saved to: $_lastExportPath'
+                : 'Export is disabled on this build.',
             style: const TextStyle(color: Colors.white70),
           ),
           actions: [
@@ -126,6 +125,9 @@ class _EditorScreenState extends State<EditorScreen> {
     );
   }
 
+  // =========================
+  // WHEN CLIP MOVED ON TIMELINE
+  // =========================
   void _onTimelineClipMoved(String clipId, Duration newPosition) {
     setState(() {
       final idx = _clips.indexWhere((c) => c.id == clipId);
@@ -138,6 +140,7 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   Widget build(BuildContext context) {
     final hasVideo = _controller != null && _controller!.value.isInitialized;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E12),
       appBar: AppBar(
@@ -154,8 +157,8 @@ class _EditorScreenState extends State<EditorScreen> {
             onPressed: _isExporting ? null : _exportVideo,
             icon: _isExporting
                 ? const SizedBox(
-                    height: 20,
                     width: 20,
+                    height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.upload_rounded),
@@ -165,6 +168,7 @@ class _EditorScreenState extends State<EditorScreen> {
       ),
       body: Column(
         children: [
+          // PREVIEW
           AspectRatio(
             aspectRatio: 9 / 16,
             child: Container(
@@ -176,17 +180,23 @@ class _EditorScreenState extends State<EditorScreen> {
               child: hasVideo
                   ? Center(child: VideoPlayer(_controller!))
                   : const Center(
-                      child: Text('Import video',
-                          style: TextStyle(color: Colors.white54)),
+                      child: Text(
+                        'Import video',
+                        style: TextStyle(color: Colors.white54),
+                      ),
                     ),
             ),
           ),
+
+          // PLAY CONTROLS
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
                   onPressed: () {
-                    if (hasVideo) _controller!.seekTo(Duration.zero);
+                    if (hasVideo) {
+                      _controller!.seekTo(Duration.zero);
+                    }
                   },
                   icon: const Icon(Icons.fast_rewind)),
               IconButton(
@@ -199,13 +209,18 @@ class _EditorScreenState extends State<EditorScreen> {
                     }
                     setState(() {});
                   },
-                  icon: Icon(hasVideo && _controller!.value.isPlaying
-                      ? Icons.pause
-                      : Icons.play_arrow)),
-              IconButton(onPressed: () {}, icon: const Icon(Icons.fast_forward)),
+                  icon: Icon(
+                    hasVideo && _controller!.value.isPlaying
+                        ? Icons.pause
+                        : Icons.play_arrow,
+                  )),
+              IconButton(
+                  onPressed: () {}, icon: const Icon(Icons.fast_forward)),
             ],
           ),
           const SizedBox(height: 8),
+
+          // TIMELINE
           Expanded(
             child: TimelineWidget(
               clips: _clips,
@@ -218,16 +233,20 @@ class _EditorScreenState extends State<EditorScreen> {
               onClipMoved: _onTimelineClipMoved,
             ),
           ),
+
+          // BOTTOM TOOLBAR
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
             color: const Color(0xFF101017),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                IconButton(onPressed: () {}, icon: const Icon(Icons.content_cut)),
+                IconButton(
+                    onPressed: () {}, icon: const Icon(Icons.content_cut)),
                 IconButton(onPressed: () {}, icon: const Icon(Icons.link)),
                 IconButton(onPressed: () {}, icon: const Icon(Icons.title)),
-                IconButton(onPressed: () {}, icon: const Icon(Icons.graphic_eq)),
+                IconButton(
+                    onPressed: () {}, icon: const Icon(Icons.graphic_eq)),
                 IconButton(
                   onPressed: () {
                     setState(() {
