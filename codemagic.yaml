@@ -17,12 +17,11 @@ workflows:
           echo "Plugin dir: $PLUG_DIR"
           if [ -f "$FILE" ]; then
             if ! grep -q "com.arthenica.ffmpegkit" "$FILE"; then
-              cat >> "$FILE" << 'EOF'
-
+              echo '
 android {
     namespace "com.arthenica.ffmpegkit"
 }
-EOF
+' >> "$FILE"
               echo "ffmpeg_kit patched with android{namespace}"
             else
               echo "ffmpeg_kit already patched"
