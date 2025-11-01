@@ -16,14 +16,19 @@ workflows:
           FILE="$PLUG_DIR/build.gradle"
           echo "Plugin dir: $PLUG_DIR"
           if [ -f "$FILE" ]; then
-            if ! grep -q "namespace " "$FILE"; then
-              echo 'namespace "com.arthenica.ffmpegkit"' >> "$FILE"
-              echo "namespace added to ffmpeg_kit"
+            if ! grep -q "com.arthenica.ffmpegkit" "$FILE"; then
+              cat >> "$FILE" << 'EOF'
+
+android {
+    namespace "com.arthenica.ffmpegkit"
+}
+EOF
+              echo "ffmpeg_kit patched with android{namespace}"
             else
-              echo "namespace already exists"
+              echo "ffmpeg_kit already patched"
             fi
           else
-            echo "ffmpeg kit build.gradle not found (maybe version changed)"
+            echo "ffmpeg kit build.gradle not found"
           fi
       - name: Build APK
         script: flutter build apk --release
